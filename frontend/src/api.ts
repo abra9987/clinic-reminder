@@ -1,0 +1,60 @@
+const BASE = "/api";
+
+export interface Appointment {
+  id: string;
+  patient_name: string;
+  doctor_name: string;
+  appointment_date: string;
+  appointment_time: string;
+  duration_minutes: number;
+  notes: string | null;
+  short_code: string;
+  page_views: number;
+  calendar_clicks_google: number;
+  calendar_clicks_ics: number;
+  created_at: string;
+}
+
+export interface CreateAppointment {
+  patient_name: string;
+  doctor_name: string;
+  appointment_date: string;
+  appointment_time: string;
+  duration_minutes: number;
+  notes?: string;
+}
+
+export async function createAppointment(data: CreateAppointment): Promise<Appointment> {
+  const res = await fetch(`${BASE}/appointments`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error("Failed to create appointment");
+  return res.json();
+}
+
+export async function listAppointments(skip = 0, limit = 20): Promise<{ items: Appointment[]; total: number }> {
+  const res = await fetch(`${BASE}/appointments?skip=${skip}&limit=${limit}`);
+  if (!res.ok) throw new Error("Failed to fetch appointments");
+  return res.json();
+}
+
+export async function deleteAppointment(id: string): Promise<void> {
+  const res = await fetch(`${BASE}/appointments/${id}`, { method: "DELETE" });
+  if (!res.ok) throw new Error("Failed to delete appointment");
+}
+
+export async function getPublicAppointment(shortCode: string): Promise<Appointment> {
+  const res = await fetch(`${BASE}/r/${shortCode}`);
+  if (!res.ok) throw new Error("Not found");
+  return res.json();
+}
+
+export async function trackView(shortCode: string): Promise<void> {
+  await fetch(`${BASE}/r/${shortCode}/track`, { method: "POST" });
+}
+
+export async function trackGoogle(shortCode: string): Promise<void> {
+  await fetch(`${BASE}/r/${shortCode}/track-google`, { method: "POST" });
+}

@@ -1,0 +1,117 @@
+import secrets
+import string
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
+from sqlalchemy import select, func
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.database import get_db
+from app.models import Appointment
+from app.schemas import AppointmentCreate, AppointmentOut, AppointmentListOut
+from app.ics_generator import generate_ics
+
+router = APIRouter()
+
+ALPHABET = string.ascii_letters + string.digits
+
+
+def make_short_code(length: int = 8) -> str:
+    return "".join(secrets.choice(ALPHABET) for _ in range(length))
+
+
+# --- Admin API ---
+
+@router.post("/api/appointments", response_model=AppointmentOut)
+async def create_appointment(data: AppointmentCreate, db: AsyncSession = Depends(get_db)):
+    short_code = make_short_code()
+    appt = Appointment(
+        patient_name=data.patient_name,
+        doctor_name=data.doctor_name,
+        appointment_date=data.appointment_date,
+        appointment_time=data.appointment_time,
+        duration_minutes=data.duration_minutes,
+        notes=data.notes,
+        short_code=short_code,
+    )
+    db.add(appt)
+    await db.commit()
+    await db.refresh(appt)
+    return appt
+
+
+@router.get("/api/appointments", response_model=AppointmentListOut)
+async def list_appointments(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+):
+    total = await db.scalar(select(func.count(Appointment.id)))
+    result = await db.execute(
+        select(Appointment).order_by(Appointment.created_at.desc()).offset(skip).limit(limit)
+    )
+    items = result.scalars().all()
+    return AppointmentListOut(items=items, total=total or 0)
+
+
+@router.get("/api/appointments/{appointment_id}", response_model=AppointmentOut)
+async def get_appointment(appointment_id: UUID, db: AsyncSession = Depends(get_db)):
+    appt = await db.get(Appointment, appointment_id)
+    if not appt:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    return appt
+
+
+@router.delete("/api/appointments/{appointment_id}")
+async def delete_appointment(appointment_id: UUID, db: AsyncSession = Depends(get_db)):
+    appt = await db.get(Appointment, appointment_id)
+    if not appt:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    await db.delete(appt)
+    await db.commit()
+    return {"ok": True}
+
+
+# --- Public patient endpoints ---
+
+async def _get_by_code(short_code: str, db: AsyncSession) -> Appointment:
+    result = await db.execute(select(Appointment).where(Appointment.short_code == short_code))
+    appt = result.scalar_one_or_none()
+    if not appt:
+        raise HTTPException(status_code=404, detail="Not found")
+    return appt
+
+
+@router.get("/api/r/{short_code}", response_model=AppointmentOut)
+async def get_public_appointment(short_code: str, db: AsyncSession = Depends(get_db)):
+    return await _get_by_code(short_code, db)
+
+
+@router.get("/api/r/{short_code}/ics")
+async def download_ics(short_code: str, db: AsyncSession = Depends(get_db)):
+    appt = await _get_by_code(short_code, db)
+    appt.calendar_clicks_ics += 1
+    await db.commit()
+    ics_content = generate_ics(appt)
+    return Response(
+        content=ics_content,
+        media_type="text/calendar",
+        headers={"Content-Disposition": f'attachment; filename="appointment-{short_code}.ics"'},
+    )
+
+
+@router.post("/api/r/{short_code}/track")
+async def track_view(short_code: str, db: AsyncSession = Depends(get_db)):
+    appt = await _get_by_code(short_code, db)
+    appt.page_views += 1
+    await db.commit()
+    return {"ok": True}
+
+
+@router.post("/api/r/{short_code}/track-google")
+async def track_google(short_code: str, db: AsyncSession = Depends(get_db)):
+    appt = await _get_by_code(short_code, db)
+    appt.calendar_clicks_google += 1
+    await db.commit()
+    return {"ok": True}
