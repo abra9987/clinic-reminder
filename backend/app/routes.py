@@ -2,11 +2,12 @@ import secrets
 import string
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Header
 from fastapi.responses import Response
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import ADMIN_PASSWORD
 from app.database import get_db
 from app.models import Appointment
 from app.schemas import AppointmentCreate, AppointmentOut, AppointmentListOut
@@ -21,9 +22,21 @@ def make_short_code(length: int = 8) -> str:
     return "".join(secrets.choice(ALPHABET) for _ in range(length))
 
 
+async def verify_admin(x_admin_password: str = Header()):
+    if x_admin_password != ADMIN_PASSWORD:
+        raise HTTPException(status_code=401, detail="Неверный пароль")
+
+
+@router.post("/api/auth/login")
+async def login(x_admin_password: str = Header()):
+    if x_admin_password != ADMIN_PASSWORD:
+        raise HTTPException(status_code=401, detail="Неверный пароль")
+    return {"ok": True}
+
+
 # --- Admin API ---
 
-@router.post("/api/appointments", response_model=AppointmentOut)
+@router.post("/api/appointments", response_model=AppointmentOut, dependencies=[Depends(verify_admin)])
 async def create_appointment(data: AppointmentCreate, db: AsyncSession = Depends(get_db)):
     short_code = make_short_code()
     appt = Appointment(
@@ -41,7 +54,7 @@ async def create_appointment(data: AppointmentCreate, db: AsyncSession = Depends
     return appt
 
 
-@router.get("/api/appointments", response_model=AppointmentListOut)
+@router.get("/api/appointments", response_model=AppointmentListOut, dependencies=[Depends(verify_admin)])
 async def list_appointments(
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
@@ -55,7 +68,7 @@ async def list_appointments(
     return AppointmentListOut(items=items, total=total or 0)
 
 
-@router.get("/api/appointments/{appointment_id}", response_model=AppointmentOut)
+@router.get("/api/appointments/{appointment_id}", response_model=AppointmentOut, dependencies=[Depends(verify_admin)])
 async def get_appointment(appointment_id: UUID, db: AsyncSession = Depends(get_db)):
     appt = await db.get(Appointment, appointment_id)
     if not appt:
@@ -63,7 +76,7 @@ async def get_appointment(appointment_id: UUID, db: AsyncSession = Depends(get_d
     return appt
 
 
-@router.delete("/api/appointments/{appointment_id}")
+@router.delete("/api/appointments/{appointment_id}", dependencies=[Depends(verify_admin)])
 async def delete_appointment(appointment_id: UUID, db: AsyncSession = Depends(get_db)):
     appt = await db.get(Appointment, appointment_id)
     if not appt:

@@ -1,37 +1,20 @@
 services:
   backend:
     build: ./backend
-    ports:
-      - "8000:8000"
-    depends_on:
-      db:
-        condition: service_healthy
     environment:
-      - DATABASE_URL=postgresql://clinic:${DB_PASSWORD}@db:5432/clinic_reminder
+      - DATABASE_URL=postgresql://postgres:194db87e184041c6f072235ebf28dd12@msaxb1gvzcczmdu2aalkeugb:5432/clinic_reminder
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-clinicadmin2026}
+    networks:
+      - coolify
+      - default
     restart: unless-stopped
 
   frontend:
     build: ./frontend
-    ports:
-      - "3000:80"
     depends_on:
       - backend
     restart: unless-stopped
 
-  db:
-    image: postgres:16-alpine
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    environment:
-      - POSTGRES_DB=clinic_reminder
-      - POSTGRES_USER=clinic
-      - POSTGRES_PASSWORD=${DB_PASSWORD}
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U clinic -d clinic_reminder"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-    restart: unless-stopped
-
-volumes:
-  pgdata:
+networks:
+  coolify:
+    external: true

@@ -24,24 +24,67 @@ export interface CreateAppointment {
   notes?: string;
 }
 
+function getPassword(): string {
+  return sessionStorage.getItem("admin_password") || "";
+}
+
+export function setPassword(pw: string) {
+  sessionStorage.setItem("admin_password", pw);
+}
+
+export function isLoggedIn(): boolean {
+  return !!sessionStorage.getItem("admin_password");
+}
+
+export function logout() {
+  sessionStorage.removeItem("admin_password");
+}
+
+function adminHeaders(): Record<string, string> {
+  return {
+    "Content-Type": "application/json",
+    "x-admin-password": getPassword(),
+  };
+}
+
+export async function login(password: string): Promise<boolean> {
+  const res = await fetch(`${BASE}/auth/login`, {
+    method: "POST",
+    headers: { "x-admin-password": password },
+  });
+  if (res.ok) {
+    setPassword(password);
+    return true;
+  }
+  return false;
+}
+
 export async function createAppointment(data: CreateAppointment): Promise<Appointment> {
   const res = await fetch(`${BASE}/appointments`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: adminHeaders(),
     body: JSON.stringify(data),
   });
+  if (res.status === 401) { logout(); window.location.reload(); }
   if (!res.ok) throw new Error("Failed to create appointment");
   return res.json();
 }
 
 export async function listAppointments(skip = 0, limit = 20): Promise<{ items: Appointment[]; total: number }> {
-  const res = await fetch(`${BASE}/appointments?skip=${skip}&limit=${limit}`);
+  const res = await fetch(`${BASE}/appointments?skip=${skip}&limit=${limit}`, {
+    headers: { "x-admin-password": getPassword() },
+  });
+  if (res.status === 401) { logout(); window.location.reload(); }
   if (!res.ok) throw new Error("Failed to fetch appointments");
   return res.json();
 }
 
 export async function deleteAppointment(id: string): Promise<void> {
-  const res = await fetch(`${BASE}/appointments/${id}`, { method: "DELETE" });
+  const res = await fetch(`${BASE}/appointments/${id}`, {
+    method: "DELETE",
+    headers: { "x-admin-password": getPassword() },
+  });
+  if (res.status === 401) { logout(); window.location.reload(); }
   if (!res.ok) throw new Error("Failed to delete appointment");
 }
 
