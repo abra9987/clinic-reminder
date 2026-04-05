@@ -144,7 +144,10 @@ async def download_ics(short_code: str, db: AsyncSession = Depends(get_db)):
     return Response(
         content=ics_content,
         media_type="text/calendar",
-        headers={"Content-Disposition": f'attachment; filename="appointment-{short_code}.ics"'},
+        headers={
+            "Content-Disposition": f'inline; filename="appointment-{short_code}.ics"',
+            "Content-Type": "text/calendar; charset=utf-8",
+        },
     )
 
 
