@@ -4,6 +4,18 @@ from uuid import UUID
 from pydantic import BaseModel
 
 
+class DoctorCreate(BaseModel):
+    name: str
+
+
+class DoctorOut(BaseModel):
+    id: UUID
+    name: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
 class AppointmentCreate(BaseModel):
     patient_name: str
     doctor_name: str

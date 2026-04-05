@@ -88,6 +88,45 @@ export async function deleteAppointment(id: string): Promise<void> {
   if (!res.ok) throw new Error("Failed to delete appointment");
 }
 
+// --- Doctors ---
+
+export interface Doctor {
+  id: string;
+  name: string;
+  created_at: string;
+}
+
+export async function listDoctors(): Promise<Doctor[]> {
+  const res = await fetch(`${BASE}/doctors`, {
+    headers: { "x-admin-password": getPassword() },
+  });
+  if (res.status === 401) { logout(); window.location.reload(); }
+  if (!res.ok) throw new Error("Failed to fetch doctors");
+  return res.json();
+}
+
+export async function createDoctor(name: string): Promise<Doctor> {
+  const res = await fetch(`${BASE}/doctors`, {
+    method: "POST",
+    headers: adminHeaders(),
+    body: JSON.stringify({ name }),
+  });
+  if (res.status === 401) { logout(); window.location.reload(); }
+  if (!res.ok) throw new Error("Failed to create doctor");
+  return res.json();
+}
+
+export async function deleteDoctor(id: string): Promise<void> {
+  const res = await fetch(`${BASE}/doctors/${id}`, {
+    method: "DELETE",
+    headers: { "x-admin-password": getPassword() },
+  });
+  if (res.status === 401) { logout(); window.location.reload(); }
+  if (!res.ok) throw new Error("Failed to delete doctor");
+}
+
+// --- Public ---
+
 export async function getPublicAppointment(shortCode: string): Promise<Appointment> {
   const res = await fetch(`${BASE}/r/${shortCode}`);
   if (!res.ok) throw new Error("Not found");

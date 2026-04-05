@@ -39,9 +39,15 @@ export default function AppointmentList() {
         {/* Header */}
         <div className="flex items-center justify-between mb-6 pt-2">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-clinic-800 rounded-lg flex items-center justify-center">
-              <ToothIcon className="w-4 h-4 text-white" />
-            </div>
+            <Link
+              to="/"
+              className="w-9 h-9 bg-clinic-800 rounded-lg flex items-center justify-center hover:bg-clinic-900 transition-colors"
+              title="Назад"
+            >
+              <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+              </svg>
+            </Link>
             <div>
               <h1 className="text-lg font-bold text-gray-800 leading-tight">
                 Напоминания

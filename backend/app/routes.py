@@ -9,8 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import ADMIN_PASSWORD
 from app.database import get_db
-from app.models import Appointment
-from app.schemas import AppointmentCreate, AppointmentOut, AppointmentListOut
+from app.models import Appointment, Doctor
+from app.schemas import AppointmentCreate, AppointmentOut, AppointmentListOut, DoctorCreate, DoctorOut
 from app.ics_generator import generate_ics
 
 router = APIRouter()
@@ -31,6 +31,33 @@ async def verify_admin(x_admin_password: str = Header()):
 async def login(x_admin_password: str = Header()):
     if x_admin_password != ADMIN_PASSWORD:
         raise HTTPException(status_code=401, detail="Неверный пароль")
+    return {"ok": True}
+
+
+# --- Doctors API ---
+
+@router.get("/api/doctors", response_model=list[DoctorOut], dependencies=[Depends(verify_admin)])
+async def list_doctors(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Doctor).order_by(Doctor.name))
+    return result.scalars().all()
+
+
+@router.post("/api/doctors", response_model=DoctorOut, dependencies=[Depends(verify_admin)])
+async def create_doctor(data: DoctorCreate, db: AsyncSession = Depends(get_db)):
+    doctor = Doctor(name=data.name)
+    db.add(doctor)
+    await db.commit()
+    await db.refresh(doctor)
+    return doctor
+
+
+@router.delete("/api/doctors/{doctor_id}", dependencies=[Depends(verify_admin)])
+async def delete_doctor(doctor_id: UUID, db: AsyncSession = Depends(get_db)):
+    doctor = await db.get(Doctor, doctor_id)
+    if not doctor:
+        raise HTTPException(status_code=404, detail="Doctor not found")
+    await db.delete(doctor)
+    await db.commit()
     return {"ok": True}
 
 

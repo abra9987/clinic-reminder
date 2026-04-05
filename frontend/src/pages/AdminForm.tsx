@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import { createAppointment, type Appointment } from "../api";
+import { createAppointment, listDoctors, createDoctor, deleteDoctor, type Appointment, type Doctor } from "../api";
 import { Link } from "react-router-dom";
 
 const DURATIONS = [
@@ -29,6 +29,13 @@ export default function AdminForm() {
   });
   const [result, setResult] = useState<Appointment | null>(null);
   const [loading, setLoading] = useState(false);
+  const [doctors, setDoctors] = useState<Doctor[]>([]);
+  const [showDoctorForm, setShowDoctorForm] = useState(false);
+  const [newDoctorName, setNewDoctorName] = useState("");
+
+  useEffect(() => {
+    listDoctors().then(setDoctors);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,6 +50,20 @@ export default function AdminForm() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleAddDoctor = async () => {
+    if (!newDoctorName.trim()) return;
+    const doc = await createDoctor(newDoctorName.trim());
+    setDoctors((prev) => [...prev, doc].sort((a, b) => a.name.localeCompare(b.name)));
+    setForm({ ...form, doctor_name: doc.name });
+    setNewDoctorName("");
+    setShowDoctorForm(false);
+  };
+
+  const handleDeleteDoctor = async (id: string) => {
+    await deleteDoctor(id);
+    setDoctors((prev) => prev.filter((d) => d.id !== id));
   };
 
   const reset = () => {
@@ -142,16 +163,77 @@ export default function AdminForm() {
             />
           </div>
 
+          {/* Doctor select */}
           <div>
-            <label className="block text-[0.78rem] font-medium text-gray-600 mb-1.5">Врач</label>
-            <input
-              type="text"
-              required
-              value={form.doctor_name}
-              onChange={(e) => setForm({ ...form, doctor_name: e.target.value })}
-              className="w-full border border-gray-200 rounded-lg px-3.5 py-2.5 text-[0.9rem] focus:ring-2 focus:ring-clinic-200 focus:border-clinic-400 outline-none transition-all placeholder:text-gray-300"
-              placeholder="Петрова А.С."
-            />
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-[0.78rem] font-medium text-gray-600">Врач</label>
+              <button
+                type="button"
+                onClick={() => setShowDoctorForm(!showDoctorForm)}
+                className="text-[0.72rem] text-clinic-600 hover:text-clinic-800 font-medium cursor-pointer"
+              >
+                {showDoctorForm ? "Отмена" : "+ Добавить врача"}
+              </button>
+            </div>
+
+            {showDoctorForm ? (
+              <div className="flex gap-2 mb-2">
+                <input
+                  type="text"
+                  value={newDoctorName}
+                  onChange={(e) => setNewDoctorName(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAddDoctor())}
+                  className="flex-1 border border-gray-200 rounded-lg px-3.5 py-2.5 text-[0.9rem] focus:ring-2 focus:ring-clinic-200 focus:border-clinic-400 outline-none transition-all placeholder:text-gray-300"
+                  placeholder="ФИО врача"
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  onClick={handleAddDoctor}
+                  className="px-3.5 bg-clinic-800 text-white rounded-lg font-medium hover:bg-clinic-900 active:scale-[0.97] transition-all cursor-pointer text-[0.82rem]"
+                >
+                  OK
+                </button>
+              </div>
+            ) : null}
+
+            {doctors.length > 0 ? (
+              <div className="space-y-1.5">
+                {doctors.map((d) => (
+                  <div
+                    key={d.id}
+                    onClick={() => setForm({ ...form, doctor_name: d.name })}
+                    className={`flex items-center justify-between px-3.5 py-2.5 rounded-lg cursor-pointer transition-all group ${
+                      form.doctor_name === d.name
+                        ? "bg-clinic-800 text-white"
+                        : "bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200"
+                    }`}
+                  >
+                    <span className="text-[0.9rem] font-medium">{d.name}</span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteDoctor(d.id);
+                        if (form.doctor_name === d.name) setForm({ ...form, doctor_name: "" });
+                      }}
+                      className={`p-1 rounded transition-all cursor-pointer ${
+                        form.doctor_name === d.name
+                          ? "text-white/40 hover:text-white/80"
+                          : "text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100"
+                      }`}
+                      title="Удалить врача"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-[0.78rem] text-gray-300 py-2">Добавьте врачей через кнопку выше</p>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -212,7 +294,7 @@ export default function AdminForm() {
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || !form.doctor_name}
             className="w-full bg-clinic-800 text-white py-3 rounded-lg font-semibold hover:bg-clinic-900 active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer mt-2"
           >
             {loading ? (
