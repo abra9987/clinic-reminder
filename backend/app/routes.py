@@ -7,7 +7,7 @@ from fastapi.responses import Response
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import ADMIN_PASSWORD
+from app.config import ADMIN_PASSWORD, SUPER_ADMIN_PASSWORD
 from app.database import get_db
 from app.models import Appointment, Doctor
 from app.schemas import AppointmentCreate, AppointmentOut, AppointmentListOut, DoctorCreate, DoctorOut
@@ -23,15 +23,22 @@ def make_short_code(length: int = 8) -> str:
 
 
 async def verify_admin(x_admin_password: str = Header()):
-    if x_admin_password != ADMIN_PASSWORD:
+    if x_admin_password not in (ADMIN_PASSWORD, SUPER_ADMIN_PASSWORD):
         raise HTTPException(status_code=401, detail="Неверный пароль")
+
+
+async def verify_super_admin(x_admin_password: str = Header()):
+    if x_admin_password != SUPER_ADMIN_PASSWORD:
+        raise HTTPException(status_code=403, detail="Нет доступа")
 
 
 @router.post("/api/auth/login")
 async def login(x_admin_password: str = Header()):
-    if x_admin_password != ADMIN_PASSWORD:
-        raise HTTPException(status_code=401, detail="Неверный пароль")
-    return {"ok": True}
+    if x_admin_password == SUPER_ADMIN_PASSWORD:
+        return {"ok": True, "role": "super"}
+    if x_admin_password == ADMIN_PASSWORD:
+        return {"ok": True, "role": "admin"}
+    raise HTTPException(status_code=401, detail="Неверный пароль")
 
 
 # --- Doctors API ---
@@ -42,7 +49,7 @@ async def list_doctors(db: AsyncSession = Depends(get_db)):
     return result.scalars().all()
 
 
-@router.post("/api/doctors", response_model=DoctorOut, dependencies=[Depends(verify_admin)])
+@router.post("/api/doctors", response_model=DoctorOut, dependencies=[Depends(verify_super_admin)])
 async def create_doctor(data: DoctorCreate, db: AsyncSession = Depends(get_db)):
     doctor = Doctor(name=data.name)
     db.add(doctor)
@@ -51,7 +58,7 @@ async def create_doctor(data: DoctorCreate, db: AsyncSession = Depends(get_db)):
     return doctor
 
 
-@router.delete("/api/doctors/{doctor_id}", dependencies=[Depends(verify_admin)])
+@router.delete("/api/doctors/{doctor_id}", dependencies=[Depends(verify_super_admin)])
 async def delete_doctor(doctor_id: UUID, db: AsyncSession = Depends(get_db)):
     doctor = await db.get(Doctor, doctor_id)
     if not doctor:
@@ -103,7 +110,7 @@ async def get_appointment(appointment_id: UUID, db: AsyncSession = Depends(get_d
     return appt
 
 
-@router.delete("/api/appointments/{appointment_id}", dependencies=[Depends(verify_admin)])
+@router.delete("/api/appointments/{appointment_id}", dependencies=[Depends(verify_super_admin)])
 async def delete_appointment(appointment_id: UUID, db: AsyncSession = Depends(get_db)):
     appt = await db.get(Appointment, appointment_id)
     if not appt:

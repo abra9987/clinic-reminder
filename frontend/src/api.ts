@@ -36,8 +36,17 @@ export function isLoggedIn(): boolean {
   return !!sessionStorage.getItem("admin_password");
 }
 
+export function getRole(): "super" | "admin" | null {
+  return sessionStorage.getItem("admin_role") as "super" | "admin" | null;
+}
+
+export function isSuperAdmin(): boolean {
+  return getRole() === "super";
+}
+
 export function logout() {
   sessionStorage.removeItem("admin_password");
+  sessionStorage.removeItem("admin_role");
 }
 
 function adminHeaders(): Record<string, string> {
@@ -53,7 +62,9 @@ export async function login(password: string): Promise<boolean> {
     headers: { "x-admin-password": password },
   });
   if (res.ok) {
+    const data = await res.json();
     setPassword(password);
+    sessionStorage.setItem("admin_role", data.role);
     return true;
   }
   return false;
